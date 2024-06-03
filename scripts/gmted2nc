@@ -1,0 +1,92 @@
+#!/bin/bash
+
+if ! command -v gdal_translate &>/dev/null; then
+    echo 'gdal_translate command not found. Can be installed with "conda install gdal" or "conda env create -f conda-gmted2nc-environment.yml"'
+    exit
+fi
+
+resolution="30 15 75"
+variable="be ds md mi mn mx sd"
+
+resolution="30"
+variable="mn"
+
+for var in ${variable}; do
+  for res in ${resolution}; do 
+      
+    case ${var} in 
+      be)
+        varname="breakline"
+        ;;
+      ds)
+        varname="subsample"
+        ;;
+      md)
+        varname="median"
+        ;;
+      mi)
+        varname="min"
+        ;;
+      mn)
+        varname="mean"
+        ;;
+      mx)
+        varname="max"
+        ;;
+      sd)
+        varname="stdev"
+        ;;
+    esac
+
+    if [ ${res} == "75" ]; then
+        resname="7p5"
+    else
+        resname=${res}
+    fi
+
+    # Source file
+    srcdir=${var}${res}_grd
+    srcfile=${srcdir}/${var}${res}_grd/hdr.adf 
+    # Destination file
+    outfile=netcdf/gmted2010_${varname}_${resname}arcsec.nc4
+
+
+    # Download GMTED2010, if needed
+    if [ ! -f $srcfile ]; then
+
+        echo 'Downloading source data...'
+        curl -O https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/topo/downloads/GMTED/Grid_ZipFiles/${srcdir}.zip
+        
+        echo 'Unzipping source data...'
+        unzip_to_dir () { unzip "$1" -d "${1%.zip}"; }
+        unzip_to_dir ${srcdir}.zip
+        rm ${srcdir}.zip
+    fi
+
+    # Convert to netCDF with GDAL
+    echo 'Converting to netCDF...'
+    gdal_translate -of NetCDF $srcfile $srcfile.tmp.nc
+
+    # Compress and refine
+    echo 'Compressing...'
+    ncks -O -h -7 -L 9 --cnk_dmn lon,1300 --cnk_dmn lat,1160 $srcfile.tmp.nc $outfile
+
+    # Remove temporary file
+    rm $srcfile.tmp.nc
+
+    # Add attributes
+    echo 'Renaming variables, attributes...'
+    ncrename -O -h -v Band1,surface_altitude $outfile
+    ncatted -O -h -a long_name,surface_altitude,o,c,"mean geometric altitude of the surface above mean sea level (EGM96 reference geoid)" $outfile
+    ncatted -O -h -a units,surface_altitude,o,c,'m'  $outfile
+    ncatted -O -h -a standard_name,surface_altitude,o,c,"surface_altitude"  $outfile
+    ncatted -O -h -a Source,global,o,c,"Converted from GMTED2010 ${varname} statistic ${resname} arc-second ArcGrid file (${srcdir}): https://topotools.cr.usgs.gov/gmted_viewer/gmted2010_global_grids.php"  $outfile
+    ncatted -O -h -a Author,global,o,c,'Converted from ArcGrid by Christopher D. Holmes, cdholmes@fsu.edu'  $outfile
+    ncatted -O -h -a comment,global,o,c,'Note that GMTED2010 altitudes are referenced to the EGM96 geoid, not the WGS84 ellipsoid.' $outfile
+
+  done
+done
+exit $?
+
+
+# ncremap -s egm2008_1.nc -g gmted2010_mn30.nc4 -m map.nc -a bilinear
