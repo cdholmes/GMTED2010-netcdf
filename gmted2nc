@@ -21,7 +21,6 @@ if [ ! -f $srcfile ]; then
     unzip_to_dir mn30_grd.zip
     rm mn30_grd.zip
 fi
-exit $?
 
 # Convert to netCDF with GDAL
 echo 'Converting to netCDF...'
