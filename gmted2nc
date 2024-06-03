@@ -1,0 +1,46 @@
+#!/bin/bash
+
+if ! command -v gdal_translate &>/dev/null; then
+    echo 'gdal_translate command not found. Can be installed with "conda install gdal" or "conda env create -f conda-gmted2nc-environment.yml"'
+    exit
+fi
+
+# Source file
+srcfile=mn30_grd/mn30_grd/hdr.adf 
+# Destination file
+outfile=netcdf/gmted2010_mean_30arcsec.nc4
+
+
+# Download GMTED2010, if needed
+if [ ! -f $srcfile ]; then
+    echo 'Downloading source data...'
+    curl -O https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/topo/downloads/GMTED/Grid_ZipFiles/mn30_grd.zip
+    
+    echo 'Unzipping source data...'
+    unzip_to_dir () { unzip "$1" -d "${1%.zip}"; }
+    unzip_to_dir mn30_grd.zip
+    rm mn30_grd.zip
+fi
+exit $?
+
+# Convert to netCDF with GDAL
+echo 'Converting to netCDF...'
+gdal_translate -of NetCDF $srcfile $srcfile.tmp.nc
+
+# Compress and refine
+echo 'Compressing...'
+ncks -O -h -7 -L 9 --cnk_dmn lon,1300 --cnk_dmn lat,1160 $srcfile.tmp.nc $outfile
+
+# Remove temporary file
+rm $srcfile.tmp.nc
+
+echo 'Renaming variables, attributes...'
+ncrename -O -h -v Band1,surface_altitude $outfile
+ncatted -O -h -a long_name,surface_altitude,o,c,"mean geometric altitude of the surface above mean sea level (EGM96 reference geoid)" $outfile
+ncatted -O -h -a units,surface_altitude,o,c,'m'  $outfile
+ncatted -O -h -a standard_name,surface_altitude,o,c,"surface_altitude"  $outfile
+ncatted -O -h -a Source,global,o,c,'Converted from GMTED2010 mean statistic 30 arc-second ArcGrid file (mn30_grd): https://topotools.cr.usgs.gov/gmted_viewer/gmted2010_global_grids.php'  $outfile
+ncatted -O -h -a Author,global,o,c,'Converted from ArcGrid by Christopher D. Holmes, cdholmes@fsu.edu'  $outfile
+ncatted -O -h -a comment,global,o,c,'Note that GMTED2010 altitudes are referenced to the EGM96 geoid, not the WGS84 ellipsoid.' $outfile
+
+# ncremap -s egm2008_1.nc -g gmted2010_mn30.nc4 -m map.nc -a bilinear

@@ -1,0 +1,7 @@
+name: gmted2nc
+channels:
+  - conda-forge
+dependencies:
+  - gdal
+  - nco
+  - curl
