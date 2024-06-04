@@ -12,24 +12,25 @@ EGM source data are originally from [NGA](https://earth-info.nga.mil/#wgs84-data
 
 # Data Access
 
+See [netcdf](netcdf) folder or links to individual files below.
+
 ## GMTED2010
 
 ### 30 arc-second resolution
- - [mean](netcdf/GMTED2010_mean_30arcsec.nc4)
- - [test link](https://github.com/cdholmes/GMTED2010-netcdf/raw/main/netcdf/GMTED2010_mean_30arcsec.nc4?download=)
- - [maximum](netcdf/GMTED2010_maximum_30arcsec.nc4)
- - [minimum](netcdf/GMTED2010_minimum_30arcsec.nc4)
- - [median](netcdf/GMTED2010_median_30arcsec.nc4)
- - [standard deviation](netcdf/GMTED2010_stdev_30arcsec.nc4)
- - [breakline](netcdf/GMTED2010_breakline_30arcsec.nc4)
- - [systematic subsample](netcdf/GMTED2010_subsample_30arcsec.nc4)
+ - [mean](https://github.com/cdholmes/GMTED2010-netcdf/raw/main/netcdf/GMTED2010_mean_30arcsec.nc4?download=)
+ - [maximum](https://github.com/cdholmes/GMTED2010-netcdf/raw/main/netcdf/GMTED2010_maximum_30arcsec.nc4?download=)
+ - [minimum](https://github.com/cdholmes/GMTED2010-netcdf/raw/main/netcdf/GMTED2010_minimum_30arcsec.nc4?download=)
+ - [median](https://github.com/cdholmes/GMTED2010-netcdf/raw/main/netcdf/GMTED2010_median_30arcsec.nc4?download=)
+ - [standard deviation](https://github.com/cdholmes/GMTED2010-netcdf/raw/main/netcdf/GMTED2010_stdev_30arcsec.nc4?download=)
+ - [breakline](https://github.com/cdholmes/GMTED2010-netcdf/raw/main/netcdf/GMTED2010_breakline_30arcsec.nc4?download=)
+ - [systematic subsample](https://github.com/cdholmes/GMTED2010-netcdf/raw/main/netcdf/GMTED2010_subsample_30arcsec.nc4?download=)
  
 ### 15 arc-second resolution
- - [mean](netcdf/GMTED2010_mean_15arcsec.nc4)
+ - [mean](https://github.com/cdholmes/GMTED2010-netcdf/raw/main/netcdf/GMTED2010_mean_15arcsec.nc4?download=)
  - Convert other variables with `gmted2nc -r 15 -v <varname>`
 
 ### 7.5 arc-second resolution
- - [mean](netcdf/GMTED2010_mean_7p5arcsec.nc4)
+ - [mean](https://github.com/cdholmes/GMTED2010-netcdf/raw/main/netcdf/GMTED2010_mean_7p5arcsec.nc4?download=)
  - Convert with `gmted2nc -r 75 -v <varname>`
 
 
