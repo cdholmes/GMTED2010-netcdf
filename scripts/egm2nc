@@ -9,7 +9,7 @@ if ! command -v gdal_translate &>/dev/null; then
 fi
 
 # Input and output directories
-srcdir=../downloads
+srcdir=../inputs
 outdir=../netcdf
 
 ncvarname=geoid_altitude
@@ -51,7 +51,7 @@ for src in ${sources}; do
   # Download source data, if needed
   if [ ! -f ${srcfile} ]; then 
     echo 'Downloading source data...'
-    (cd ../downloads; curl -O https://s3-eu-west-1.amazonaws.com/download.agisoft.com/gtg/$(basename ${srcfile}))
+    (cd ${srcdir}; curl -O https://s3-eu-west-1.amazonaws.com/download.agisoft.com/gtg/$(basename ${srcfile}))
   fi
 
   # Convert to netCDF with GDAL

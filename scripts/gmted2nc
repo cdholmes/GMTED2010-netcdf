@@ -103,7 +103,7 @@ for varname in ${variable}; do
     fi
 
     # Source file
-    srcdir=../downloads/${var}${res}_grd
+    srcdir=../inputs/${var}${res}_grd
     srcfile=${srcdir}/${var}${res}_grd/hdr.adf 
     # Destination file
     outfile=../netcdf/GMTED2010_${varname}_${resname}arcsec.nc4
@@ -116,7 +116,7 @@ for varname in ${variable}; do
 
         echo 'Downloading source data...'
         echo ${url}
-        (cd ../downloads; curl -O ${url})
+        (cd ../inputs; curl -O ${url})
         
         echo 'Unzipping source data...'
         unzip_to_dir () { unzip "$1" -d "${1%.zip}"; }
