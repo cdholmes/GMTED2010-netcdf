@@ -6,7 +6,7 @@ See the [GMTED2010 webpage](https://www.usgs.gov/coastal-changes-and-impacts/gmt
 
 # EGM96, EGM2008 geoid data in NetCDF format
 
-Earth Gravitational Model geoid heights are available here in NetCDF4 format. Several resolutions are provided, including a grid that matches the GMTED2010. 
+[Earth Gravitational Model (EGM)](https://earth-info.nga.mil/#wgs84-data) global geoid heights are available here in NetCDF4 format. Versions EGM96 and EGM2008 are both provided at several resolutions, including a grid that matches GMTED2010. The surface elvation above the WGS84 ellipsoid is computed by adding GMTED2010 and EGM96 heights.
 
 # Data Access
 
