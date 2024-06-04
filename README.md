@@ -1,16 +1,18 @@
 # GMTED2010 global elevation data in NetCDF format
 
-[Global Multi-resolution Terrain Elevation Data (GMTED2010)](https://www.usgs.gov/coastal-changes-and-impacts/gmted2010) are available here in NetCDF4 format. USGS [distributes](https://topotools.cr.usgs.gov/gmted_viewer/gmted2010_global_grids.php) GMTED2010 in ESRI ArcGrid format. The NetCDF4 files here were converted from the source using a script in this repository. GMTED2010 replaces the older GTOPO30 elevation dataset.
+Global Multi-resolution Terrain Elevation Data (GMTED2010) are [available here](#gmted2010) in NetCDF4 format. USGS [distributes](https://topotools.cr.usgs.gov/gmted_viewer/gmted2010_global_grids.php) GMTED2010 in ESRI ArcGrid format. The NetCDF4 files here were converted from the source using a script in this repository. GMTED2010 replaces the older GTOPO30 elevation dataset.
 
 See the [GMTED2010 webpage](https://www.usgs.gov/coastal-changes-and-impacts/gmted2010) for a description of the dataset. 
 
 # EGM96, EGM2008 geoid data in NetCDF format
 
-[Earth Gravitational Model (EGM)](https://earth-info.nga.mil/#wgs84-data) global geoid heights are available here in NetCDF4 format. Versions EGM96 and EGM2008 are both provided at several resolutions, including a grid that matches GMTED2010. The surface elvation above the WGS84 ellipsoid is computed by adding GMTED2010 and EGM96 heights.
+Earth Gravitational Model (EGM) global geoid heights are [available here](#egm-geoid) in NetCDF4 format. Versions EGM96 and EGM2008 are provided at several resolutions, including a grid that matches GMTED2010. Earth's surface elvation above the WGS84 ellipsoid is computed by adding GMTED2010 and EGM96 heights.
+
 
 # Data Access
 
 ## GMTED2010
+
 ### 30 arc-second resolution
  - [mean](netcdf/GMTED010_mean_30arcsec.nc4)
  - [maximum](netcdf/GMTED2010_maximum_30arcsec.nc4)
@@ -26,14 +28,15 @@ See the [GMTED2010 webpage](https://www.usgs.gov/coastal-changes-and-impacts/gmt
 
 ### 7.5 arc-second resolution
  - [mean](netcdf/GMTED2010_mean_7p5arcsec.nc4)
- Convert with `gmted2nc -r 75 -v <varname>`
+ - Convert with `gmted2nc -r 75 -v <varname>`
+
 
 ## EGM Geoid
+
 ### EGM96
  - [15 arc-minutes](netcdf/EGM96_15arcmin.nc4)
  - [30 arc-seconds](netcdf/EGM96_30arcsec.nc4) same grid as GMTED2010 data
  - Other resolutions can be produced by `egm2nc`
 ### EGM2008
  - [2.5 arc-minutes](netcdf/EGM2008_2p5arcmin.nc4)
- - [1 arc-minute](netcdf/EGM2008_1arcmin.nc4)
  - Other resolutions can be produced by `egm2nc`

@@ -1,0 +1,9 @@
+GMTED2010_maximum_30arcsec.nc4 filter=lfs diff=lfs merge=lfs -text
+GMTED2010_mean_15arcsec.nc4 filter=lfs diff=lfs merge=lfs -text
+GMTED2010_mean_30arcsec.nc4 filter=lfs diff=lfs merge=lfs -text
+GMTED2010_minimum_30arcsec.nc4 filter=lfs diff=lfs merge=lfs -text
+GMTED2010_subsample_30arcsec.nc4 filter=lfs diff=lfs merge=lfs -text
+GMTED2010_breakline_30arcsec.nc4 filter=lfs diff=lfs merge=lfs -text
+GMTED2010_mean_7p5arcsec.nc4 filter=lfs diff=lfs merge=lfs -text
+GMTED2010_median_30arcsec.nc4 filter=lfs diff=lfs merge=lfs -text
+GMTED2010_stdev_30arcsec.nc4 filter=lfs diff=lfs merge=lfs -text
