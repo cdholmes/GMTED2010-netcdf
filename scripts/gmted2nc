@@ -1,40 +1,98 @@
 #!/bin/bash
 
+# Parse command options
+show_usage () {
+  echo "Usage: $0 [-r '<resolutions>'] [-v '<variables>']"
+  echo "  <variables> values may be: all mean maximum minimum median stdev breakline subsample. Use quotes if two or more variables are specified"
+  echo "  <resolutions> values may be: all, 30 15 75. Use quotes if two or more resolutions are specified"
+  echo "  Converts specified GMTED2010 data variables and resolutions to NetCDF format."
+}
+OPTSTRING=":hr:v:"
+while getopts ${OPTSTRING} opt; do
+  case ${opt} in
+    r)
+      resolution=${OPTARG}
+      ;;
+    v)
+      variable=${OPTARG}
+      ;;
+    h)
+      show_usage
+      exit 1
+      ;;
+    :)
+      echo "Option -${OPTARG} requires an argument."
+      show_usage
+      exit 1
+      ;;
+    ?)
+      echo "Invalid option: -${OPTARG}."
+      show_usage
+      exit 1
+      ;;
+  esac
+done
+
+# Default argument values
+if [ -z "${resolution}" ] || [ "${resolution}" == "all"  ]; then
+  resolution="30 15 75"
+  # resolution="30"
+fi
+if [ -z "${variable}" ] || [ "${variable}" == "all" ]; then
+  variable="mean maximum minimum median stdev breakline subsample"
+  # variable="mean"
+fi
+
+echo ""
+echo "Data to be converted"
+echo Variables:   $variable
+echo Resolutions: $resolution
+echo ""
+
 if ! command -v gdal_translate &>/dev/null; then
     echo 'gdal_translate command not found. Can be installed with "conda install gdal" or "conda env create -f conda-gmted2nc-environment.yml"'
     exit
 fi
 
-resolution="30 15 75"
-variable="be ds md mi mn mx sd"
-
-resolution="30"
-variable="mn"
-
-for var in ${variable}; do
+for varname in ${variable}; do
   for res in ${resolution}; do 
-      
-    case ${var} in 
-      be)
-        varname="breakline"
+
+    echo "Processing ${varname} ${res}..."
+
+    # Variable names
+    ncvarname='surface_altitude'
+    case ${varname} in 
+      breakline)
+        var="be"
+        ncvarname="surface_altitude_breakline"
         ;;
-      ds)
-        varname="subsample"
+      subsample)
+        var="ds"
+        ncvarname="surface_altitude_subsample"
         ;;
-      md)
-        varname="median"
+      median)
+        var="md"
+        ncvarname="surface_altitude_median"
         ;;
-      mi)
-        varname="min"
+      minimum)
+        var="mi"
+        ncvarname="surface_altitude_minimum"
         ;;
-      mn)
-        varname="mean"
+      mean)
+        var="mn"
+        ncvarname="surface_altitude"
         ;;
-      mx)
-        varname="max"
+      maximum)
+        var="mx"
+        ncvarname="surface_altitude_maximum"
         ;;
-      sd)
-        varname="stdev"
+      stdev)
+        var="sd"
+        ncvarname="surface_altitude_stdev"
+        ;;
+      ?)
+        echo "Invalid variable name: ${var}."
+        exit 1
         ;;
     esac
 
@@ -45,17 +103,20 @@ for var in ${variable}; do
     fi
 
     # Source file
-    srcdir=${var}${res}_grd
+    srcdir=../downloads/${var}${res}_grd
     srcfile=${srcdir}/${var}${res}_grd/hdr.adf 
     # Destination file
-    outfile=netcdf/gmted2010_${varname}_${resname}arcsec.nc4
+    outfile=../netcdf/GMTED2010_${varname}_${resname}arcsec.nc4
 
 
     # Download GMTED2010, if needed
     if [ ! -f $srcfile ]; then
 
+        url=https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/topo/downloads/GMTED/Grid_ZipFiles/$(basename $srcdir).zip
+
         echo 'Downloading source data...'
-        curl -O https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/topo/downloads/GMTED/Grid_ZipFiles/${srcdir}.zip
+        echo ${url}
+        (cd ../downloads; curl -O ${url})
         
         echo 'Unzipping source data...'
         unzip_to_dir () { unzip "$1" -d "${1%.zip}"; }
@@ -67,26 +128,28 @@ for var in ${variable}; do
     echo 'Converting to netCDF...'
     gdal_translate -of NetCDF $srcfile $srcfile.tmp.nc
 
+    # Add bounds for latitude, longitude
+    ncap2 -O -h -s 'defdim("nb",2); lon_bnds=make_bounds(lon,$nb,"lon_bnds"); lat_bnds=make_bounds(lat,$nb,"lat_bnds")' $srcfile.tmp.nc $srcfile.tmp.nc 
+
     # Compress and refine
     echo 'Compressing...'
-    ncks -O -h -7 -L 9 --cnk_dmn lon,1300 --cnk_dmn lat,1160 $srcfile.tmp.nc $outfile
+    ncks -O -h -7 -L 2 --cnk_dmn lon,1300 --cnk_dmn lat,1160 $srcfile.tmp.nc $outfile
 
     # Remove temporary file
     rm $srcfile.tmp.nc
 
     # Add attributes
     echo 'Renaming variables, attributes...'
-    ncrename -O -h -v Band1,surface_altitude $outfile
-    ncatted -O -h -a long_name,surface_altitude,o,c,"mean geometric altitude of the surface above mean sea level (EGM96 reference geoid)" $outfile
-    ncatted -O -h -a units,surface_altitude,o,c,'m'  $outfile
-    ncatted -O -h -a standard_name,surface_altitude,o,c,"surface_altitude"  $outfile
-    ncatted -O -h -a Source,global,o,c,"Converted from GMTED2010 ${varname} statistic ${resname} arc-second ArcGrid file (${srcdir}): https://topotools.cr.usgs.gov/gmted_viewer/gmted2010_global_grids.php"  $outfile
-    ncatted -O -h -a Author,global,o,c,'Converted from ArcGrid by Christopher D. Holmes, cdholmes@fsu.edu'  $outfile
+    ncrename -O -h -v Band1,${ncvarname} $outfile
+    ncatted -O -h -a long_name,${ncvarname},o,c,"${varname} geometric altitude of the surface above mean sea level (EGM96 reference geoid)" $outfile
+    ncatted -O -h -a units,${ncvarname},o,c,'m' $outfile
+    ncatted -O -h -a standard_name,${ncvarname},o,c,"${ncvarname}" $outfile
+    ncatted -O -h -a Source,global,o,c,"Original source GMTED2010 ${varname} statistic ${resname} arc-second ESRI ArcGrid file (${srcdir}): https://topotools.cr.usgs.gov/gmted_viewer/gmted2010_global_grids.php"  $outfile
+    ncatted -O -h -a Author,global,o,c,'Converted to NetCDF using gmted2nc script from Christopher D. Holmes, cdholmes@fsu.edu'  $outfile
     ncatted -O -h -a comment,global,o,c,'Note that GMTED2010 altitudes are referenced to the EGM96 geoid, not the WGS84 ellipsoid.' $outfile
+
+    echo ''
 
   done
 done
 exit $?
-
-
-# ncremap -s egm2008_1.nc -g gmted2010_mn30.nc4 -m map.nc -a bilinear
