@@ -31,7 +31,7 @@ See [netcdf](netcdf) folder or links to individual files below.
 
 ### 7.5 arc-second resolution
  - [mean](https://github.com/cdholmes/GMTED2010-netcdf/raw/main/netcdf/GMTED2010_mean_7p5arcsec.nc4?download=)
- - Convert with `gmted2nc -r 75 -v <varname>`
+ - Convert other variables with `gmted2nc -r 75 -v <varname>`
 
 
 ## EGM Geoid
