@@ -1,0 +1,173 @@
+#!/bin/bash
+
+# Convert Global Multi-resolution Terrain Elevation Data (GMTED2010) surface elevation data to NetCDF format
+# Data source: https://www.usgs.gov/coastal-changes-and-impacts/gmted2010
+
+if ! command -v gdal_translate &>/dev/null; then
+    echo 'gdal_translate command not found. Can be installed with "conda install gdal" or "conda env create -f conda-gmted2nc-environment.yml"'
+    exit
+fi
+
+# Parse command options
+show_usage () {
+  echo "Usage: $0 -O -r '<resolutions>' -v '<variables>'"
+  echo "  <variables> values may be: all mean maximum minimum median stdev breakline subsample."
+  echo "              Use quotes if two or more variables are specified"
+  echo "  <resolutions> values may be: all, 30 15 75. Use quotes if two or more resolutions are specified"
+  echo "  -O overwrites output files, if any exist"
+  echo "  -h show help message"
+  echo "  Converts specified GMTED2010 data variables and resolutions to NetCDF format."
+}
+overwrite=false
+OPTSTRING=":hOr:v:"
+while getopts ${OPTSTRING} opt; do
+  case ${opt} in
+    r) resolution=${OPTARG};;
+    v) variable=${OPTARG};;
+    O) overwrite=true;;
+    h)
+      show_usage
+      exit 1
+      ;;
+    :)
+      echo "Option -${OPTARG} requires an argument."
+      show_usage
+      exit 1
+      ;;
+    ?)
+      echo "Invalid option: -${OPTARG}."
+      show_usage
+      exit 1
+      ;;
+  esac
+done
+if [ $OPTIND -eq 1 ]; then 
+  echo "Missing required arguments"
+  show_usage
+  exit 1 
+fi
+
+# Default argument values
+if [ -z "${resolution}" ] || [ "${resolution}" == "all"  ]; then
+  resolution="30 15 75"
+  # resolution="30"
+fi
+if [ -z "${variable}" ] || [ "${variable}" == "all" ]; then
+  variable="mean maximum minimum median stdev breakline subsample"
+  # variable="mean"
+fi
+
+echo ""
+echo "Data to be converted"
+echo Variables:   $variable
+echo Resolutions: $resolution
+echo ""
+
+for varname in ${variable}; do
+  for res in ${resolution}; do 
+
+    echo "Processing ${varname} ${res}..."
+
+    # Variable names
+    ncvarname='surface_altitude'
+    case ${varname} in 
+      breakline)
+        var="be"
+        ncvarname="surface_altitude_breakline"
+        ;;
+      subsample)
+        var="ds"
+        ncvarname="surface_altitude_subsample"
+        ;;
+      median)
+        var="md"
+        ncvarname="surface_altitude_median"
+        ;;
+      minimum)
+        var="mi"
+        ncvarname="surface_altitude_minimum"
+        ;;
+      mean)
+        var="mn"
+        ncvarname="surface_altitude"
+        ;;
+      maximum)
+        var="mx"
+        ncvarname="surface_altitude_maximum"
+        ;;
+      stdev)
+        var="sd"
+        ncvarname="surface_altitude_stdev"
+        ;;
+      ?)
+        echo "Invalid variable name: ${var}."
+        exit 1
+        ;;
+    esac
+
+    if [ ${res} == "75" ]; then
+        resname="7p5"
+    else
+        resname=${res}
+    fi
+
+    # Source file
+    srcdir=../inputs/${var}${res}_grd
+    srcfile=${srcdir}/${var}${res}_grd/hdr.adf 
+    # Destination file
+    outfile=../netcdf/GMTED2010_${varname}_${resname}arcsec.nc4
+
+    # If destination file exists, decide whether to overwrite
+    if [ -f $outfile ]; then
+      if [ "$overwrite" = true ]; then
+        echo "Overwriting $outfile"
+      else
+        echo "Output file $outfile exists. Skipping. Use -O to overwrite."
+        continue
+      fi
+    fi
+
+    # Download GMTED2010, if needed
+    if [ ! -f $srcfile ]; then
+
+        url=https://edcintl.cr.usgs.gov/downloads/sciweb1/shared/topo/downloads/GMTED/Grid_ZipFiles/$(basename $srcdir).zip
+
+        echo 'Downloading source data...'
+        echo ${url}
+        (cd ../inputs; curl -O ${url})
+        
+        echo 'Unzipping source data...'
+        unzip_to_dir () { unzip "$1" -d "${1%.zip}"; }
+        unzip_to_dir ${srcdir}.zip
+        rm ${srcdir}.zip
+    fi
+
+    # Convert to netCDF with GDAL
+    echo 'Converting to netCDF...'
+    gdal_translate -of NetCDF $srcfile $srcfile.tmp.nc
+
+    # Add bounds for latitude, longitude
+    ncap2 -O -h -s 'defdim("nb",2); lon_bnds=make_bounds(lon,$nb,"lon_bnds"); lat_bnds=make_bounds(lat,$nb,"lat_bnds")' $srcfile.tmp.nc $srcfile.tmp.nc 
+
+    # Compress and refine
+    echo 'Compressing...'
+    ncks -O -h -7 -L 2 --cnk_dmn lon,1300 --cnk_dmn lat,1160 $srcfile.tmp.nc $outfile
+
+    # Remove temporary file
+    rm $srcfile.tmp.nc
+
+    # Add attributes
+    echo 'Renaming variables, attributes...'
+    ncrename -O -h -v Band1,${ncvarname} $outfile
+    ncatted -O -h -a long_name,${ncvarname},o,c,"${varname} geometric altitude of the surface above mean sea level (EGM96 reference geoid)" $outfile
+    ncatted -O -h -a units,${ncvarname},o,c,'m' $outfile
+    ncatted -O -h -a standard_name,${ncvarname},o,c,"${ncvarname}" $outfile
+    ncatted -O -h -a Source,global,o,c,"Original source GMTED2010 ${varname} statistic ${resname} arc-second ESRI ArcGrid file (${srcdir}): https://topotools.cr.usgs.gov/gmted_viewer/gmted2010_global_grids.php"  $outfile
+    ncatted -O -h -a Author,global,o,c,'Converted to NetCDF using gmted2nc script from Christopher D. Holmes, cdholmes@fsu.edu'  $outfile
+    ncatted -O -h -a comment,global,o,c,'Note that GMTED2010 altitudes are referenced to the EGM96 geoid, not the WGS84 ellipsoid.' $outfile
+
+    echo ''
+
+  done
+done
+exit $?

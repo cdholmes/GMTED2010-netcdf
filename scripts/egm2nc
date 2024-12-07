@@ -1,0 +1,161 @@
+#!/bin/bash
+
+# Convert Earth Gravity Model (EGM96 and EGM2008) data to NetCDF format
+# Data source: https://www.agisoft.com/downloads/geoids/
+
+if ! command -v gdal_translate &>/dev/null; then
+    echo 'gdal_translate command not found. Can be installed with "conda install gdal" or "conda env create -f conda-gmted2nc-environment.yml"'
+    exit 1
+fi
+
+# Parse command options
+show_usage () {
+  echo "Usage: $0 -O -m -s '<sources>'"
+  echo "  <sources> values may be: all egm96_15 egm2008_25 egm2008_1"
+  echo "              Use quotes if two or more variables are specified"
+  echo "              egm96_15   = EGM96 15 arc-minute resolution"
+  echo "              egm2008_25 = EGM2008 2.5 arc-minute resolution"
+  echo "              egm2008_1  = EGM2008 1 arc-minute resolution"
+  echo "  -m remap the data to a 30 arc-second resolution (same grid as GMTED2010)"
+  echo "  -O overwrites output files, if any exist"
+  echo "  -h show help message"
+  echo "  Converts Earth Gravitational Model (EGM) geoid data to NetCDF format."
+}
+overwrite=false
+remap=false
+OPTSTRING=":hOms:"
+while getopts ${OPTSTRING} opt; do
+  case ${opt} in
+    s) sources=${OPTARG};;
+    O) overwrite=true;;
+    m) remap=true;;
+    h)
+      show_usage
+      exit 1
+      ;;
+    :)
+      echo "Option -${OPTARG} requires an argument."
+      show_usage
+      exit 1
+      ;;
+    ?)
+      echo "Invalid option: -${OPTARG}."
+      show_usage
+      exit 1
+      ;;
+  esac
+done
+if [ $OPTIND -eq 1 ]; then 
+  echo "Missing required arguments"
+  show_usage
+  exit 1 
+fi
+
+# Input and output directories
+srcdir=../inputs
+outdir=../netcdf
+
+ncvarname=geoid_altitude
+
+# Default sources
+if [ -z "${sources}" ] || [ "${sources}" == "all" ]; then
+  sources='egm96_15 egm2008_25 egm2008_1'
+  # sources="egm96_15"
+fi
+
+echo ""
+echo "Data to be converted"
+echo Sources:   $sources
+echo Remapping: $remap
+echo ""
+
+for src in ${sources}; do 
+
+  echo ${src}
+
+  # Source file
+  srcfile=${srcdir}/us_nga_${src}.tif
+
+  # Output file
+  case ${src} in 
+    egm96_15)
+      version=EGM96
+      res=15arcmin
+      ;;
+    egm2008_25)
+      version=EGM2008
+      res=2p5arcmin
+      ;;
+    egm2008_1)
+      version=EGM2008
+      res=1arcmin
+      ;;
+    ?)
+      echo "Invalid souce name: ${src}."
+      exit 1
+      ;;
+  esac
+  outfile=${outdir}/${version}_${res}.nc4
+
+  # If destination file exists, decide whether to overwrite
+  if [ -f $outfile ]; then
+    if [ "$overwrite" = true ]; then
+      echo "Overwriting $outfile"
+    else
+      echo "Output file $outfile exists. Skipping. Use -O to overwrite."
+      continue
+    fi
+  fi
+
+  # Download source data, if needed
+  if [ ! -f ${srcfile} ]; then 
+    echo 'Downloading source data...'
+    (cd ${srcdir}; curl -O https://s3-eu-west-1.amazonaws.com/download.agisoft.com/gtg/$(basename ${srcfile}))
+  fi
+
+  # Convert to netCDF with GDAL
+  echo 'Converting to netCDF...'
+  gdal_translate -of NetCDF ${srcfile} ${srcfile}.tmp.nc
+
+  # Add bounds for latitude, longitude
+  ncap2 -O -h -s 'defdim("nb",2); lon_bnds=make_bounds(lon,$nb,"lon_bnds"); lat_bnds=make_bounds(lat,$nb,"lat_bnds")' $srcfile.tmp.nc $srcfile.tmp.nc
+
+  # Compress and refine
+  echo 'Compressing...'
+  # Round to nearest cm (data accuracy) and store as a short int
+  ncap2 -O -h -s 'Band1=short(Band1*100); Band1@scale_factor=0.01; Band1@add_offset=0.0' $srcfile.tmp.nc $srcfile.tmp.nc
+  # Lossless compression
+  ncks -O -h -7 -L 2 --cnk_dmn lon,1500 --cnk_dmn lat,1500 $srcfile.tmp.nc $outfile
+
+  # Remove temporary file
+  rm $srcfile.tmp.nc
+
+  # Add attributes
+  echo 'Renaming variables, attributes...'
+  ncrename -O -h -v Band1,${ncvarname} $outfile
+  ncatted -O -h -a long_name,${ncvarname},o,c,"altitude of the geoid above the reference ellipsoid (WGS84)" $outfile
+  ncatted -O -h -a units,${ncvarname},o,c,'m' $outfile
+  ncatted -O -h -a standard_name,${ncvarname},o,c,"geoid_height_above_reference_ellipsoid" $outfile
+  ncatted -O -h -a Source,global,o,c,"EGM96, EGM2008 data source: https://www.agisoft.com/downloads/geoids/ "  $outfile
+  ncatted -O -h -a Author,global,o,c,'Converted from GeoTIFF using egm2nc script from Christopher D. Holmes, cdholmes@fsu.edu'  $outfile
+
+  if [ "${remap}" = true ]; then
+    # Interpolate to the GMTED2010 30 arc-sec grid
+    echo 'Interpolate to GMTED2010 resolution... (This may take 30 minutes or more)'
+    outfile_hires=${outdir}/${version}_30arcsec.nc4
+    cdo remapbil,${outdir}/GMTED2010_mean_30arcsec.nc4 ${outfile} ${outfile_hires}
+    # linear inverse distance weighting (similar to bilinear) and pure nco
+    # ncremap -a nco_idw -xtr_xpn=1.0 -s ${outfile} -d GMTED2010_mean_30arcsec.nc4 ${outfile_hires}
+
+    echo 'Compress interpolated file...'
+    # Round to nearest cm (data accuracy) and store as a short int
+    ncap2 -O -h -s 'geoid_altitude=short(geoid_altitude*100); geoid_altitude@scale_factor=0.01; geoid_altitude@add_offset=0.0' ${outfile_hires} ${outfile_hires}
+    # Lossless compression
+    ncks -O -h -7 -L 2 --cnk_dmn lon,1500 --cnk_dmn lat,1500 ${outfile_hires} ${outfile_hires}
+    
+    # Add explanation of remapping
+    ncatted -O -h -a Comment,global,o,c,"Data have been remapped to 30 arc-second resolution from the original ${res} resolution (bilinear interpolation)" ${outfile_hires}
+  fi
+
+done
+
